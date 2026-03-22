@@ -77,6 +77,18 @@ app.post('/api/rooms', (req, res) => {
 });
 
 // Contest Routes
+app.get('/api/contests', (req, res) => {
+  const contestList = Array.from(contests.values()).map(c => ({
+    name: c.name,
+    code: c.code,
+    startTime: c.startTime,
+    durationSeconds: c.durationSeconds,
+    participantCount: c.participants.length,
+    createdBy: c.createdBy
+  }));
+  res.json(contestList);
+});
+
 app.get('/api/contests/:code', (req, res) => {
   const contest = contests.get(req.params.code);
   if (!contest) return res.status(404).json({ error: 'Contest not found' });
@@ -94,7 +106,7 @@ app.post('/api/contests', (req, res) => {
       createdBy,
       problems: problems || [],
       durationSeconds,
-      startTime: Date.now(),
+      startTime: req.body.startTime || Date.now(),
       participants: [
         {
           id: Math.random().toString(36).substring(7),

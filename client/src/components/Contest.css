@@ -463,6 +463,137 @@
   }
 }
 
+/* Waiting Screen Styling */
+.waiting-screen {
+  min-height: 100vh;
+  width: 100vw;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: radial-gradient(circle at top right, #1a2a6c, #b21f1f, #fdbb2d);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #fff;
+}
+
+.waiting-card {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 50px;
+  border-radius: 24px;
+  text-align: center;
+  max-width: 600px;
+  width: 90%;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.status-badge {
+  background: #ffc107;
+  color: #000;
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 25px;
+}
+
+.waiting-card h1 {
+  font-size: 42px;
+  margin: 0 0 10px 0;
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+.contest-info {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 16px;
+  margin-bottom: 40px;
+}
+
+.countdown-container {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 30px;
+  border-radius: 16px;
+  margin-bottom: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.launch-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.timer-digits {
+  font-size: 64px;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 700;
+  color: #ffc107;
+  text-shadow: 0 0 20px rgba(255, 193, 7, 0.3);
+}
+
+.contest-rules {
+  text-align: left;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 25px;
+  border-radius: 12px;
+  margin-bottom: 30px;
+}
+
+.contest-rules h3 {
+  margin: 0 0 15px 0;
+  font-size: 18px;
+  color: #fff;
+}
+
+.contest-rules ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.contest-rules li {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.contest-rules li strong {
+  color: #fff;
+}
+
+.participant-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.participant-count::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: #4caf50;
+  border-radius: 50%;
+  display: block;
+}
+
 /* Detailed Test Results Styling */
 .result-item-wrapper {
   display: flex;

@@ -35,6 +35,17 @@ function Contest() {
   const [customOutputType, setCustomOutputType] = useState('');
   const [runInput, setRunInput] = useState('');
   const [showRunInput, setShowRunInput] = useState(false);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  // Update current time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const isStarted = contest && currentTime >= contest.startTime;
 
   // Interactive Terminal State
   const [showTerminal, setShowTerminal] = useState(false);
@@ -339,7 +350,44 @@ function Contest() {
     );
   }
 
-  const currentProblem = contest.problems[currentProblemIndex];
+  // Pre-contest Waiting Screen
+  if (!isStarted && contest) {
+    const secondsToStart = Math.floor((contest.startTime - currentTime) / 1000);
+    const h = Math.floor(secondsToStart / 3600);
+    const m = Math.floor((secondsToStart % 3600) / 60);
+    const s = secondsToStart % 60;
+    const countdownStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+    return (
+      <div className="waiting-screen">
+        <div className="waiting-card">
+          <div className="status-badge">Upcoming Contest</div>
+          <h1>{contest.name}</h1>
+          <p className="contest-info">Organized by {contest.createdBy}</p>
+          
+          <div className="countdown-container">
+            <span className="launch-text">Contest starts in</span>
+            <div className="timer-digits">{countdownStr}</div>
+          </div>
+
+          <div className="contest-rules">
+            <h3>Contest Details</h3>
+            <ul>
+              <li><strong>Duration:</strong> {Math.floor(contest.durationSeconds / 60)} minutes</li>
+              <li><strong>Problems:</strong> {contest.problems.length}</li>
+              <li><strong>Time:</strong> {new Date(contest.startTime).toLocaleString()}</li>
+            </ul>
+          </div>
+
+          <div className="participant-count">
+            {participants.length} Participant{participants.length !== 1 ? 's' : ''} joined
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const currentProblem = contest?.problems[currentProblemIndex];
 
   return (
     <div className="contest-container">

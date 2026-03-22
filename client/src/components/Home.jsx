@@ -1,15 +1,86 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './Home.css';
 
+function ContestCard({ contest, userName, onJoin }) {
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const isStarted = now >= contest.startTime;
+  const isEnded = now >= (contest.startTime + (contest.durationSeconds * 1000));
+  
+  const secondsToStart = Math.max(0, Math.floor((contest.startTime - now) / 1000));
+  const h = Math.floor(secondsToStart / 3600);
+  const m = Math.floor((secondsToStart % 3600) / 60);
+  const s = secondsToStart % 60;
+  const countdownStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+  return (
+    <div className={`contest-list-card ${isEnded ? 'ended' : isStarted ? 'active' : 'upcoming'}`}>
+      <div className="card-top">
+        <div className="status-dot"></div>
+        <span className="status-text">{isEnded ? 'CONTEST ENDED' : isStarted ? 'CONTEST LIVE' : 'UPCOMING'}</span>
+      </div>
+      <h3 className="card-name">{contest.name}</h3>
+      <div className="card-details">
+        <div className="detail-item">
+          <span className="label">Starts:</span>
+          <span className="value">{new Date(contest.startTime).toLocaleString()}</span>
+        </div>
+        <div className="detail-item">
+          <span className="label">Participants:</span>
+          <span className="value">{contest.participantCount}</span>
+        </div>
+      </div>
+
+      {!isStarted && !isEnded && (
+        <div className="list-countdown">
+          <span className="label">Starts in:</span>
+          <span className="timer">{countdownStr}</span>
+        </div>
+      )}
+
+      <div className="card-actions">
+        <button 
+          className={`btn-card-join ${!isStarted || isEnded ? 'disabled' : ''}`}
+          disabled={!isStarted || isEnded}
+          onClick={() => onJoin(contest.code)}
+        >
+          {isEnded ? 'Ended' : isStarted ? 'Join Now' : 'Join Early'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Home() {
   const [name, setName] = useState('');
-  const [mode, setMode] = useState(null); // 'collab', 'contest-create', 'contest-join', null
-  const [roomCode, setRoomCode] = useState('');
+  const [mode, setMode] = useState(null); 
   const [contestCode, setContestCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [contests, setContests] = useState([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (mode === 'contest') {
+      fetchContests();
+    }
+  }, [mode]);
+
+  const fetchContests = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/contests');
+      setContests(res.data);
+    } catch (err) {
+      console.error('Error fetching contests');
+    }
+  };
 
   const handleCreateRoom = async () => {
     if (!name.trim()) return alert('Please enter your name');
@@ -17,11 +88,7 @@ function Home() {
     try {
       const res = await axios.post('http://localhost:5000/api/rooms', { name });
       navigate(`/room/${res.data.code}?name=${name}`);
-    } catch (err) {
-      alert('Error creating room');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { alert('Error creating room'); } finally { setLoading(false); }
   };
 
   const handleJoinRoom = async () => {
@@ -30,11 +97,7 @@ function Home() {
     try {
       await axios.get(`http://localhost:5000/api/rooms/${roomCode}`);
       navigate(`/room/${roomCode}?name=${name}`);
-    } catch (err) {
-      alert('Room not found');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { alert('Room not found'); } finally { setLoading(false); }
   };
 
   const handleCreateContest = () => {
@@ -42,12 +105,13 @@ function Home() {
     navigate(`/contest/create?name=${name}`);
   };
 
-  const handleJoinContest = async () => {
-    if (!name.trim() || !contestCode.trim()) return alert('Please enter name and contest code');
+  const handleJoinContest = async (code) => {
+    const finalCode = code || contestCode;
+    if (!name.trim() || !finalCode.trim()) return alert('Please enter your name and a contest code');
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/contests/${contestCode}`);
-      navigate(`/contest/${contestCode}?name=${name}`);
+      await axios.get(`http://localhost:5000/api/contests/${finalCode}`);
+      navigate(`/contest/${finalCode}?name=${name}`);
     } catch (err) {
       alert('Contest not found');
     } finally {
@@ -55,185 +119,99 @@ function Home() {
     }
   };
 
-  if (!mode) {
-    return (
-      <div className="home-container">
-        <div className="feature-selection">
-          <h1>🚀 CollabX</h1>
-          <p>Choose your mode</p>
-          
-          <div className="feature-cards">
-            <div 
-              className="feature-card collab-card" 
-              onClick={() => setMode('collab')}
-            >
-              <div className="feature-icon">👥</div>
-              <h2>Collaborative Coding</h2>
-              <p>Code together in real-time with your team</p>
-              <div className="feature-perks">
-                <div>✓ Real-time sync</div>
-                <div>✓ Multi-user cursors</div>
-                <div>✓ Live chat</div>
-              </div>
-            </div>
-
-            <div 
-              className="feature-card contest-card" 
-              onClick={() => setMode('contest')}
-            >
-              <div className="feature-icon">🏆</div>
-              <h2>Contests & Challenges</h2>
-              <p>Compete with others and challenge your skills</p>
-              <div className="feature-perks">
-                <div>✓ Live leaderboards</div>
-                <div>✓ Timed contests</div>
-                <div>✓ Test case validation</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mode-navigation">
-            <button className="back-btn" onClick={() => {}}>← Back</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Collaborative Coding Mode
-  if (mode === 'collab') {
-    return (
-      <div className="home-container">
-        <div className="home-card">
-          <button className="back-btn" onClick={() => setMode(null)}>← Back to Mode Selection</button>
-          
-          <h1>👥 Collaborative Coding</h1>
-          <p>Code together, create better</p>
-          
-          <div className="input-group">
-            <input
-              type="text"
-              placeholder="Enter your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleCreateRoom()}
-            />
-          </div>
-
-          <div className="button-group">
-            <button 
-              className="btn-primary" 
-              onClick={handleCreateRoom}
-              disabled={loading}
-            >
-              {loading ? 'Creating...' : 'Create Room'}
-            </button>
-            <button 
-              className="btn-secondary" 
-              onClick={() => setMode('collab-join')}
-            >
-              Join Room
-            </button>
-          </div>
-
-          {mode === 'collab-join' && (
-            <div className="join-section">
-              <h3>Join Existing Room</h3>
-              <input
-                type="text"
-                placeholder="Enter room code"
-                value={roomCode}
-                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                onKeyPress={(e) => e.key === 'Enter' && handleJoinRoom()}
-                maxLength="6"
+  return (
+    <div className="home-container">
+      {!mode ? (
+        <div className="homepage-hero">
+          <div className="hero-content">
+            <h1 className="hero-logo">Collab<span>X</span></h1>
+            <p className="hero-tagline">Real-time collaborative coding and competitive programming platform.</p>
+            
+            <div className="hero-main-input">
+              <input 
+                type="text" 
+                placeholder="Enter your name to start..." 
+                value={name} 
+                onChange={(e) => setName(e.target.value)}
               />
-              <button 
-                className="join-btn"
-                onClick={handleJoinRoom}
-                disabled={loading}
-              >
-                {loading ? 'Joining...' : 'Join'}
-              </button>
             </div>
-          )}
-        </div>
-      </div>
-    );
-  }
 
-  // Contest Mode Selection
-  if (mode === 'contest') {
-    return (
-      <div className="home-container">
-        <div className="home-card">
-          <button className="back-btn" onClick={() => setMode(null)}>← Back to Mode Selection</button>
-          
-          <h1>🏆 Contests & Challenges</h1>
-          <p>Test your coding skills</p>
-          
-          <div className="input-group">
-            <input
-              type="text"
-              placeholder="Enter your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+            <div className="hero-cards">
+              <div className="hero-card collab" onClick={() => name ? setMode('collab') : alert('Enter name first!')}>
+                <div className="card-icon">👥</div>
+                <h2>Collab Mode</h2>
+                <p>Pair program in real-time with shared editor and chat.</p>
+                <div className="card-btn">Open Editor</div>
+              </div>
+              
+              <div className="hero-card contest" onClick={() => name ? setMode('contest') : alert('Enter name first!')}>
+                <div className="card-icon">🏆</div>
+                <h2>Contest Mode</h2>
+                <p>Host or join coding challenges with live leaderboards.</p>
+                <div className="card-btn">Browse Contests</div>
+              </div>
+            </div>
           </div>
-
-          <div className="button-group">
-            <button 
-              className="btn-primary" 
-              onClick={handleCreateContest}
-              disabled={!name.trim()}
-            >
-              Create Contest
+          
+          <div className="hero-footer">
+            Built for developers, by Antigravity Agent.
+          </div>
+        </div>
+      ) : mode === 'collab' ? (
+        <div className="home-card glass">
+          <button className="back-btn-top" onClick={() => setMode(null)}>← Home</button>
+          <div className="card-header">
+            <div className="header-icon">👥</div>
+            <h1>Collaborative Coding</h1>
+          </div>
+          <div className="button-group-hero">
+            <button className="btn-hero-primary" onClick={handleCreateRoom} disabled={loading}>
+              {loading ? 'Starting...' : 'Create Instant Room'}
             </button>
-            <button 
-              className="btn-secondary" 
-              onClick={() => setMode('contest-join')}
-            >
-              Join Contest
-            </button>
+            <div className="divider"><span>OR</span></div>
+            <div className="hero-inline-join">
+               <input 
+                type="text" 
+                placeholder="Enter Room Code" 
+                value={contestCode} 
+                onChange={(e) => setContestCode(e.target.value.toUpperCase())}
+               />
+               <button onClick={handleJoinRoom}>Join</button>
+            </div>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  // Contest Join Mode
-  if (mode === 'contest-join') {
-    return (
-      <div className="home-container">
-        <div className="home-card">
-          <button className="back-btn" onClick={() => setMode('contest')}>← Back</button>
-          
-          <h1>🏆 Join Contest</h1>
-          <p>Enter the contest code to join</p>
-          
-          <div className="input-group">
-            <input
-              type="text"
-              placeholder="Enter contest code"
-              value={contestCode}
-              onChange={(e) => setContestCode(e.target.value.toUpperCase())}
-              onKeyPress={(e) => e.key === 'Enter' && handleJoinContest()}
-              maxLength="6"
-            />
+      ) : (
+        <div className="home-card contest-view">
+          <button className="back-btn-top" onClick={() => setMode(null)}>← Home</button>
+          <div className="contest-page-header">
+             <div className="title-section">
+                <h1>Active & Upcoming Contests</h1>
+                <p>Select a contest to join or schedule a new one.</p>
+             </div>
+             <button className="btn-create-header" onClick={handleCreateContest}>+ Create Contest</button>
           </div>
 
-          <button 
-            className="btn-primary"
-            onClick={handleJoinContest}
-            disabled={loading || !contestCode.trim()}
-          >
-            {loading ? 'Joining...' : 'Join Contest'}
-          </button>
+          <div className="contest-grid">
+             {contests.length === 0 ? (
+               <div className="no-contests">
+                 <p>No active contests found. Why not create one?</p>
+               </div>
+             ) : (
+               contests.map(c => (
+                 <ContestCard key={c.code} contest={c} userName={name} onJoin={handleJoinContest} />
+               ))
+             )}
+          </div>
+          
+          <div className="manual-join-footer">
+             <span>Have a private invite code?</span>
+             <input type="text" placeholder="CODE" value={contestCode} onChange={(e) => setContestCode(e.target.value.toUpperCase())} maxLength="6" />
+             <button onClick={() => handleJoinContest()}>Join</button>
+          </div>
         </div>
-      </div>
-    );
-  }
-
-  return null;
+      )}
+    </div>
+  );
 }
 
 export default Home;
