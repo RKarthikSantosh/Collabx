@@ -531,21 +531,16 @@ io.on('connection', (socket) => {
     const problem = contest.problems[problemIndex];
     const maxScore = problem.score || 100;
     
+    // Calculate score based on passed test cases proportion
     const passedCount = data.testResults ? data.testResults.filter(t => t.passed).length : (allPassed ? 1 : 0);
     const totalCount = data.testResults ? (data.testResults.length || 1) : 1;
     let scoreGained = Math.floor((passedCount / totalCount) * maxScore);
     
-    // Time bonus for absolute completion
     const now = Date.now();
     const elapsed = (now - contest.startTime) / 1000;
-    const timeBonus = allPassed ? Math.max(0, 50 * (1 - (elapsed / contest.durationSeconds))) : 0;
     
-    // Always store latest successful submission timestamp
+    // Always store latest submission timestamp
     participant.lastSubmissionTime = now;
-    
-    if (allPassed) {
-      scoreGained += Math.floor(timeBonus);
-    }
     
     if (!participant.problemScores) participant.problemScores = {};
     const previousScore = participant.problemScores[problemIndex] || 0;

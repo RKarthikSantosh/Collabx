@@ -17,8 +17,13 @@ function Contest() {
 
   const [contest, setContest] = useState(null);
   const [currentProblemIndex, setCurrentProblemIndex] = useState(0);
-  const [code, setCode] = useState('// Start coding...');
-  const [language, setLanguage] = useState('javascript');
+  
+  // Persistent Storage Keys
+  const codeKey = `collabx_contest_${contestCode}_p${currentProblemIndex}_code`;
+  const langKey = `collabx_contest_${contestCode}_p${currentProblemIndex}_lang`;
+
+  const [code, setCode] = useState(() => localStorage.getItem(codeKey) || '// Start coding...');
+  const [language, setLanguage] = useState(() => localStorage.getItem(langKey) || 'javascript');
   const [output, setOutput] = useState('');
   const [outputType, setOutputType] = useState('');
   const [loading, setLoading] = useState(false);
@@ -187,27 +192,61 @@ function Contest() {
     };
   }, [contestCode, userName, navigate]);
 
+  // Sync with localStorage when currentProblemIndex changes
+  useEffect(() => {
+    const savedCode = localStorage.getItem(codeKey);
+    const savedLang = localStorage.getItem(langKey);
+    
+    if (savedCode !== null) setCode(savedCode);
+    else setCode('// Start coding...');
+    
+    if (savedLang !== null) setLanguage(savedLang);
+    else setLanguage('javascript');
+  }, [currentProblemIndex, codeKey, langKey]);
+
   const executeTests = async (isSubmit) => {
     if (!contest) return;
 
     setLoading(true);
-    setTestResults([]);
-    setOutput(isSubmit ? 'Running all test cases...' : 'Running sample test cases...');
+    if (isSubmit) setTestResults([]);
+    setOutput(isSubmit ? 'Running all test cases...' : 'Compiling and running...');
 
     try {
       const problem = contest.problems[currentProblemIndex];
-      // Note: If Run, just execute first testcase. If Submit, execute all testcases.
-      const testCasesToRun = isSubmit ? problem.testCases : [problem.testCases[0]];
       
+      // RUN MODE: Just run with sample input (first test case) or just show raw output
+      if (!isSubmit) {
+        const testCase = problem.testCases[0] || { input: '', output: '' };
+        const result = await submitCode(code, language, testCase.input || '');
+        
+        // Show raw output and error
+        let displayOutput = result.output || '';
+        if (result.error) {
+          displayOutput += (displayOutput ? '\n\n' : '') + 'Error:\n' + result.error;
+        }
+        
+        setOutput(displayOutput || 'Program executed successfully (no output)');
+        setOutputType(result.success ? 'success' : 'error');
+        setLoading(false);
+        return;
+      }
+
+      // SUBMIT MODE: Run all test cases and validate
+      const testCasesToRun = problem.testCases || [];
       const newTestResults = [];
       let allPassed = true;
+
+      const normalize = (str) => {
+        if (!str) return '';
+        return str.replace(/\r\n/g, '\n').split('\n').map(line => line.trim()).filter(line => line).join('\n').trim();
+      };
 
       for (let idx = 0; idx < testCasesToRun.length; idx++) {
         const testCase = testCasesToRun[idx];
         const result = await submitCode(code, language, testCase.input || '');
         
-        const userOutput = result.output?.trim() || '';
-        const expectedOutput = testCase.output.trim();
+        const userOutput = normalize(result.output);
+        const expectedOutput = normalize(testCase.output);
         const passed = result.success && (userOutput === expectedOutput);
 
         if (!passed) allPassed = false;
@@ -218,20 +257,20 @@ function Contest() {
           input: testCase.input,
           expectedOutput,
           userOutput,
-          status: passed ? '✓ PASS' : '✗ FAIL'
+          status: passed ? '✓ PASS' : '✗ FAIL',
+          error: result.error || (passed ? '' : (result.success ? 'Wrong Answer' : 'Runtime Error'))
         });
       }
 
       const message = allPassed
-        ? (isSubmit ? '🎉 All test cases passed!' : '✅ Sample test case passed!')
+        ? '🎉 All test cases passed!'
         : `${newTestResults.filter(t => t.passed).length}/${newTestResults.length} test cases passed`;
 
       setTestResults(newTestResults);
       setOutput(message);
       setOutputType(allPassed ? 'success' : 'partial');
 
-      // Send submission to server
-      if (isSubmit && socketRef.current) {
+      if (socketRef.current) {
         socketRef.current.emit('submit-solution', {
           contestCode,
           userName,
@@ -242,7 +281,6 @@ function Contest() {
           testResults: newTestResults
         });
       }
-
     } catch (err) {
       setOutput('Error: ' + err.message);
       setOutputType('error');
@@ -255,8 +293,15 @@ function Contest() {
   const handleSubmit = () => executeTests(true);
 
   const handleLanguageChange = (e) => {
-    setLanguage(e.target.value);
-    setCode('// Start coding...');
+    const newLang = e.target.value;
+    setLanguage(newLang);
+    localStorage.setItem(langKey, newLang);
+  };
+
+  const handleCodeChange = (val) => {
+    const newCode = val || '';
+    setCode(newCode);
+    localStorage.setItem(codeKey, newCode);
   };
 
   const handleEditorDidMount = (editor) => {
@@ -345,7 +390,7 @@ function Contest() {
               height="400px"
               language={language}
               value={code}
-              onChange={(val) => setCode(val || '')}
+              onChange={handleCodeChange}
               onMount={handleEditorDidMount}
               theme="vs-dark"
               options={{
@@ -385,9 +430,18 @@ function Contest() {
               <h4>Test Case Results</h4>
               <div className="results-grid">
                 {testResults.map((result, idx) => (
-                  <div key={idx} className={`result-item ${result.passed ? 'passed' : 'failed'}`}>
-                    <span className="result-status">{result.status}</span>
-                    <span className="result-detail">Test Case {result.index}</span>
+                  <div key={idx} className={`result-item-wrapper`}>
+                    <div className={`result-item ${result.passed ? 'passed' : 'failed'}`}>
+                      <span className="result-status">{result.status}</span>
+                      <span className="result-detail">Test Case {result.index}</span>
+                    </div>
+                    {!result.passed && (
+                      <div className="result-error-detail">
+                        <div className="detail-row"><strong>Input:</strong> <code>{result.input || 'None'}</code></div>
+                        <div className="detail-row"><strong>Expected:</strong> <code>{result.expectedOutput}</code></div>
+                        <div className="detail-row"><strong>Actual:</strong> <code>{result.userOutput || (result.error ? result.status : 'No output')}</code></div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

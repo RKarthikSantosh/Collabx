@@ -2,18 +2,30 @@ import './Leaderboard.css';
 
 function Leaderboard({ participants = [], currentUserName = '' }) {
   const sortedParticipants = [...participants].sort((a, b) => {
-    // First by problems solved
-    if (b.problemsSolved !== a.problemsSolved) {
-      return b.problemsSolved - a.problemsSolved;
+    // 1. Sort by total score (Highest first)
+    if (b.score !== a.score) {
+      return (b.score || 0) - (a.score || 0);
     }
-    // Then by time taken
-    return a.timeTaken - b.timeTaken;
+    // 2. Then by problems solved (Highest first)
+    if (b.problemsSolved !== a.problemsSolved) {
+      return (b.problemsSolved || 0) - (a.problemsSolved || 0);
+    }
+    // 3. Then by time taken (Lowest first)
+    // Only compare if they have solved at least one problem, otherwise it's just 0 vs 0
+    return (a.timeTaken || 0) - (b.timeTaken || 0);
   });
 
   const formatTime = (seconds) => {
-    if (!seconds) return '--:--';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    if (!seconds && seconds !== 0) return '--:--';
+    if (seconds === 0) return '00:00';
+    
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hrs > 0) {
+      return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 

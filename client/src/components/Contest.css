@@ -462,3 +462,49 @@
     text-align: center;
   }
 }
+
+/* Detailed Test Results Styling */
+.result-item-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.result-error-detail {
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  font-size: 13px;
+  color: #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-left: 3px solid #ef5350;
+}
+
+.detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-row strong {
+  color: #ff6b35;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-row code {
+  background: #111;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: 'Courier New', Courier, monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border: 1px solid #333;
+}
