@@ -44,23 +44,89 @@
   margin: 0 auto 60px auto;
 }
 
-.hero-main-input input {
-  width: 100%;
-  padding: 16px 24px;
+/* Authentication Styling */
+.auth-subtitle {
+  color: #94a3b8;
+  margin-bottom: 30px;
+  font-size: 14px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.auth-row {
+  display: flex;
+  gap: 10px;
+}
+
+.auth-row input {
+  flex: 1;
+}
+
+.auth-form input {
+  padding: 14px 18px;
   background: rgba(255, 255, 255, 0.05);
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
   color: white;
-  font-size: 18px;
-  text-align: center;
+  font-size: 16px;
   transition: all 0.3s;
 }
 
-.hero-main-input input:focus {
+.auth-form input:focus {
   outline: none;
   border-color: #3b82f6;
   background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+}
+
+.auth-switch {
+  margin-top: 25px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.auth-switch span {
+  color: #3b82f6;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-switch span:hover {
+  text-decoration: underline;
+}
+
+/* User Navigation (Logged In) */
+.user-nav {
+  position: absolute;
+  top: 40px;
+  right: 60px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 14px;
+}
+
+.user-nav strong {
+  color: #3b82f6;
+}
+
+.logout-btn {
+  background: rgba(244, 63, 94, 0.1);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.2);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.logout-btn:hover {
+  background: #f43f5e;
+  color: white;
 }
 
 .hero-cards {
@@ -232,10 +298,51 @@
 
 .back-btn-top:hover { color: #f1f5f9; }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+.creator-badge {
+  margin-left: auto;
+  font-size: 10px;
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 800;
 }
+
+.admin-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.btn-admin-end {
+  flex: 1;
+  padding: 8px;
+  background: rgba(234, 179, 8, 0.1);
+  color: #eab308;
+  border: 1px solid rgba(234, 179, 8, 0.2);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-admin-delete {
+  flex: 1;
+  padding: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-admin-end:hover { background: #eab308; color: white; }
+.btn-admin-delete:hover { background: #ef4444; color: white; }
 
 /* Glass Card */
 .home-card.glass {

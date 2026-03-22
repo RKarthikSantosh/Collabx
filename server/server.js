@@ -7,6 +7,9 @@ const path = require('path');
 const fs = require('fs');
 const { promisify } = require('util');
 const { VM } = require('vm2');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const pool = require('./db');
 require('dotenv').config();
 
 const execAsync = promisify(exec);
@@ -25,7 +28,7 @@ function execWithInput(command, args, options) {
     });
 
     if (options.input !== undefined && options.input !== null) {
-      child.stdin.write(options.input);
+      child.stdin.write(String(options.input));
       child.stdin.end();
     }
   });
@@ -43,10 +46,58 @@ const io = socketIo(server, {
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// In-memory storage for rooms
-const rooms = new Map();
+// Logger middleware for debugging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
 
-// In-memory storage for contests
+// AUTH ROUTES
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { name, email, password, college } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    const [result] = await pool.query(
+      'INSERT INTO users (name, email, password, college) VALUES (?, ?, ?, ?)',
+      [name, email, hashedPassword, college]
+    );
+    
+    res.status(201).json({ message: 'User registered successfully', userId: result.insertId });
+  } catch (err) {
+    console.error('Registration Error:', err); // Log the exact error to console
+    if (err.code === 'ER_DUP_ENTRY') {
+      res.status(400).json({ message: 'Email already exists' });
+    } else {
+      res.status(500).json({ message: 'Error registering user: ' + (err.sqlMessage || err.message) });
+    }
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+    if (users.length === 0) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+    
+    const user = users[0];
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+    
+    const token = jwt.sign({ id: user.id, name: user.name }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  } catch (err) {
+    res.status(500).json({ message: 'Login error: ' + err.message });
+  }
+});
+
+// In-memory storage for rooms/contests (keep for socket rooms)
+const rooms = new Map();
 const contests = new Map();
 
 // Track connected users: socketId -> { userName, roomCode } or { userName, contestCode }
@@ -87,6 +138,34 @@ app.get('/api/contests', (req, res) => {
     createdBy: c.createdBy
   }));
   res.json(contestList);
+});
+
+app.post('/api/contests/:code/end', (req, res) => {
+  const contest = contests.get(req.params.code);
+  if (!contest) return res.status(404).json({ error: 'Contest not found' });
+  
+  const { userName } = req.body;
+  if (contest.createdBy !== userName) {
+    return res.status(403).json({ error: 'Only the creator can end the contest' });
+  }
+
+  // Set endTime to now
+  const now = Date.now();
+  contest.durationSeconds = Math.floor((now - contest.startTime) / 1000);
+  res.json({ message: 'Contest ended successfully', contest });
+});
+
+app.delete('/api/contests/:code', (req, res) => {
+  const contest = contests.get(req.params.code);
+  if (!contest) return res.status(404).json({ error: 'Contest not found' });
+  
+  const { userName } = req.query; // Send via query for DELETE
+  if (contest.createdBy !== userName) {
+    return res.status(403).json({ error: 'Only the creator can delete the contest' });
+  }
+
+  contests.delete(req.params.code);
+  res.json({ message: 'Contest deleted successfully' });
 });
 
 app.get('/api/contests/:code', (req, res) => {
