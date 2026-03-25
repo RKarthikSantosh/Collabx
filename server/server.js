@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
-const { exec, execFile } = require('child_process');
+const { exec, execFile, spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { promisify } = require('util');
@@ -15,22 +15,67 @@ require('dotenv').config();
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
-function execWithInput(command, args, options) {
-  return new Promise((resolve, reject) => {
-    const child = execFile(command, args, options, (error, stdout, stderr) => {
-      if (error) {
-        error.stdout = stdout;
-        error.stderr = stderr;
-        reject(error);
-      } else {
-        resolve({ stdout, stderr });
+/**
+ * Robust execution function that uses spawn to handle large IO and multi-line stdin.
+ * Resolves the issue where Python scripts would hit EOF errors with multi-line inputs.
+ */
+function execWithInput(command, args, options = {}) {
+  const { timeout = 10000, input = '' } = options;
+  
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    let isResolved = false;
+
+    const child = spawn(command, args, {
+      timeout: timeout,
+      shell: false
+    });
+
+    // Write input to stdin and close it promptly
+    if (child.stdin) {
+      if (input) {
+        child.stdin.write(input + '\n');
+      }
+      child.stdin.end();
+    }
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    // Enforce timeout
+    const timer = setTimeout(() => {
+      if (!isResolved) {
+        child.kill();
+        isResolved = true;
+        resolve({ 
+          stdout, 
+          stderr: stderr + '\n[CollabX] Error: Execution timed out (10s limit).', 
+          error: true 
+        });
+      }
+    }, timeout);
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (!isResolved) {
+        isResolved = true;
+        resolve({ stdout, stderr, code });
       }
     });
 
-    if (options.input !== undefined && options.input !== null) {
-      child.stdin.write(String(options.input));
-      child.stdin.end();
-    }
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      if (!isResolved) {
+        isResolved = true;
+        resolve({ stdout, stderr: stderr + '\n[CollabX] Error: ' + err.message, error: true });
+      }
+    });
   });
 }
 
@@ -206,263 +251,74 @@ app.post('/api/contests', (req, res) => {
   }
 });
 
-// Compiler endpoint
+// JDoodle API Credentials
+const JDOODLE_CLIENT_ID = "ca0865dd7db02d3ff91b795eea731783";
+const JDOODLE_CLIENT_SECRET = "67007ffaf85b48ccacbcad8b3098811a8b7618ff0d0473cbc281607f576bfcb2";
+
+// Language mapping for JDoodle
+const languageMap = {
+  javascript: { language: "nodejs", versionIndex: "4" },
+  python: { language: "python3", versionIndex: "4" },
+  java: { language: "java", versionIndex: "4" },
+  cpp: { language: "cpp17", versionIndex: "1" },
+  c: { language: "c", versionIndex: "5" }
+};
+
+// Compiler endpoint (Switched to JDoodle API)
 app.post('/api/compile', async (req, res) => {
   try {
     const { code, language, input = '' } = req.body;
     
-    if (language === 'javascript') {
-      // JavaScript execution with vm2
-      try {
-        let output = '';
-        const console = {
-          log: (...args) => {
-            output += args.join(' ') + '\n';
-          },
-          error: (...args) => {
-            output += 'Error: ' + args.join(' ') + '\n';
-          }
-        };
+    const config = languageMap[language];
+    if (!config) {
+      return res.status(400).json({ success: false, error: 'Unsupported language' });
+    }
 
-        const vm = new VM({
-          timeout: 5000,
-          sandbox: {
-            console,
-            Math,
-            Date,
-            String,
-            Number,
-            Array,
-            Object,
-            Boolean,
-            JSON,
-            RegExp,
-            input: input.trim()
-          }
-        });
+    const payload = {
+      clientId: JDOODLE_CLIENT_ID,
+      clientSecret: JDOODLE_CLIENT_SECRET,
+      script: code,
+      stdin: input,
+      language: config.language,
+      versionIndex: config.versionIndex
+    };
 
-        const result = vm.run(code);
-        
-        if (!output && result !== undefined && result !== null) {
-          output = String(result);
-        }
+    const response = await fetch('https://api.jdoodle.com/v1/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
 
-        res.json({
-          success: true,
-          output: output || 'Code executed successfully',
-          error: '',
-          exitCode: 0
-        });
-      } catch (err) {
-        res.json({
-          success: false,
-          output: '',
-          error: 'Runtime Error: ' + err.message,
-          exitCode: 1
-        });
-      }
-    } else if (language === 'python') {
-      await executePython(code, res, input);
-    } else if (language === 'java') {
-      await executeJava(code, res, input);
-    } else if (language === 'cpp') {
-      await executeCpp(code, res, input);
-    } else if (language === 'c') {
-      await executeC(code, res, input);
+    const result = await response.json();
+
+    if (result.statusCode === 200) {
+      res.json({
+        success: true,
+        output: result.output || 'Execution successful',
+        memory: result.memory,
+        cpuTime: result.cpuTime,
+        error: '',
+        exitCode: 0
+      });
     } else {
       res.json({
         success: false,
         output: '',
-        error: 'Unsupported language',
-        exitCode: 1
+        error: result.error || 'Compilation Error from Remote Service',
+        exitCode: result.statusCode || 1
       });
     }
+
   } catch (err) {
-    console.error('Compile error:', err.message);
+    console.error('Remote Compile Error:', err.message);
     res.status(500).json({
       success: false,
       output: '',
-      error: 'Error: ' + err.message,
+      error: 'API Error: ' + err.message,
       exitCode: -1
     });
   }
 });
-
-async function executePython(code, res, input = '') {
-  try {
-    const tempFile = path.join(__dirname, `temp_${Date.now()}.py`);
-    fs.writeFileSync(tempFile, code);
-
-    try {
-      const { stdout, stderr } = await execWithInput('python', [tempFile], {
-        timeout: 10000,
-        maxBuffer: 1024 * 1024,
-        input: input
-      });
-
-      res.json({
-        success: !stderr,
-        output: stdout || 'Python code executed successfully',
-        error: stderr || '',
-        exitCode: stderr ? 1 : 0
-      });
-    } finally {
-      if (fs.existsSync(tempFile)) {
-        fs.unlinkSync(tempFile);
-      }
-    }
-  } catch (err) {
-    res.json({
-      success: false,
-      output: err.stdout || '',
-      error: err.stderr ? err.stderr : 'Python Error: ' + err.message,
-      exitCode: err.code || 1
-    });
-  }
-}
-
-async function executeJava(code, res, input = '') {
-  try {
-    // Java execution - requires compilation first
-    const tempDir = path.join(__dirname, `temp_${Date.now()}`);
-    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-
-    const className = 'Main';
-    const javaFile = path.join(tempDir, `${className}.java`);
-    const classFile = path.join(tempDir, `${className}.class`);
-
-    // Wrap code in a class if not already
-    let wrappedCode = code;
-    if (!code.includes('public class')) {
-      wrappedCode = `public class ${className} {\n    public static void main(String[] args) {\n${code}\n    }\n}`;
-    }
-
-    fs.writeFileSync(javaFile, wrappedCode);
-
-    try {
-      // Compile
-      await execFileAsync('javac', [javaFile], {
-        timeout: 10000,
-        cwd: tempDir
-      });
-
-      // Run
-      const { stdout, stderr } = await execWithInput('java', ['-cp', tempDir, className], {
-        timeout: 10000,
-        maxBuffer: 1024 * 1024,
-        input: input
-      });
-
-      res.json({
-        success: !stderr,
-        output: stdout || 'Java code executed successfully',
-        error: stderr || '',
-        exitCode: stderr ? 1 : 0
-      });
-    } finally {
-      if (fs.existsSync(tempDir)) {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-      }
-    }
-  } catch (err) {
-    res.json({
-      success: false,
-      output: err.stdout || '',
-      error: err.stderr ? err.stderr : 'Java Error: ' + err.message,
-      exitCode: err.code || 1
-    });
-  }
-}
-
-async function executeCpp(code, res, input = '') {
-  try {
-    const tempDir = path.join(__dirname, `temp_${Date.now()}`);
-    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-
-    const cppFile = path.join(tempDir, 'main.cpp');
-    const exeFile = path.join(tempDir, 'main.exe');
-
-    fs.writeFileSync(cppFile, code);
-
-    try {
-      // Compile
-      await execFileAsync('g++', [cppFile, '-o', exeFile], {
-        timeout: 10000,
-        cwd: tempDir
-      });
-
-      // Run
-      const { stdout, stderr } = await execWithInput(exeFile, [], {
-        timeout: 10000,
-        maxBuffer: 1024 * 1024,
-        input: input
-      });
-
-      res.json({
-        success: !stderr,
-        output: stdout || 'C++ code executed successfully',
-        error: stderr || '',
-        exitCode: stderr ? 1 : 0
-      });
-    } finally {
-      if (fs.existsSync(tempDir)) {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-      }
-    }
-  } catch (err) {
-    res.json({
-      success: false,
-      output: err.stdout || '',
-      error: err.stderr ? err.stderr : 'C++ Error: ' + err.message,
-      exitCode: err.code || 1
-    });
-  }
-}
-
-async function executeC(code, res, input = '') {
-  try {
-    const tempDir = path.join(__dirname, `temp_${Date.now()}`);
-    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-
-    const cFile = path.join(tempDir, 'main.c');
-    const exeFile = path.join(tempDir, 'main.exe');
-
-    fs.writeFileSync(cFile, code);
-
-    try {
-      // Compile
-      await execFileAsync('gcc', [cFile, '-o', exeFile], {
-        timeout: 10000,
-        cwd: tempDir
-      });
-
-      // Run
-      const { stdout, stderr } = await execWithInput(exeFile, [], {
-        timeout: 10000,
-        maxBuffer: 1024 * 1024,
-        input: input
-      });
-
-      res.json({
-        success: !stderr,
-        output: stdout || 'C code executed successfully',
-        error: stderr || '',
-        exitCode: stderr ? 1 : 0
-      });
-    } finally {
-      if (fs.existsSync(tempDir)) {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-      }
-    }
-  } catch (err) {
-    res.json({
-      success: false,
-      output: err.stdout || '',
-      error: err.stderr ? err.stderr : 'C Error: ' + err.message,
-      exitCode: err.code || 1
-    });
-  }
-}
 
 // Socket.io
 io.on('connection', (socket) => {

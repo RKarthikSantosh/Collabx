@@ -495,3 +495,24 @@
   50% { box-shadow: 0 0 8px rgba(255, 255, 255, 0.4); }
   100% { box-shadow: 0 0 2px rgba(255, 255, 255, 0.2); }
 }
+
+.btn-stats-footer {
+  background: rgba(139, 92, 246, 0.1);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-stats-footer:hover {
+  background: #7c3aed;
+  color: #fff;
+  border-color: #7c3aed;
+  transform: translateY(-1px);
+}
