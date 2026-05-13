@@ -5,6 +5,7 @@ import Editor from '@monaco-editor/react';
 import { submitCode } from '../services/compilerService';
 import ContestTimer from './ContestTimer';
 import InteractiveTerminal from './InteractiveTerminal';
+import CodeStatisticsModal from './CodeStatisticsModal';
 import './Contest.css';
 
 function Contest() {
@@ -36,6 +37,9 @@ function Contest() {
   const [runInput, setRunInput] = useState('');
   const [showRunInput, setShowRunInput] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsData, setStatsData] = useState({});
 
   // Update current time every second
   useEffect(() => {
@@ -303,6 +307,29 @@ function Contest() {
   const handleRun = () => executeTests(false);
   const handleSubmit = () => executeTests(true);
 
+  const handleFetchStats = async () => {
+    setStatsLoading(true);
+    setShowStatsModal(true);
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/stats', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ code, language })
+      });
+
+      const stats = await response.json();
+      await new Promise(r => setTimeout(r, 800));
+      setStatsData(stats);
+    } catch (err) {
+      console.error('Stats API Failure:', err);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
   const handleLanguageChange = (e) => {
     const newLang = e.target.value;
     setLanguage(newLang);
@@ -391,6 +418,12 @@ function Contest() {
 
   return (
     <div className="contest-container">
+      <CodeStatisticsModal 
+        isOpen={showStatsModal} 
+        onClose={() => setShowStatsModal(false)} 
+        stats={statsData} 
+        loading={statsLoading} 
+      />
       {/* Header */}
       <div className="contest-header">
         <div className="contest-title">
@@ -467,6 +500,12 @@ function Contest() {
               disabled={loading}
             >
               {loading ? '⏳ Submitting...' : '🚀 Submit'}
+            </button>
+            <button
+              className="btn-stats"
+              onClick={handleFetchStats}
+            >
+              📊 Statistics
             </button>
           </div>
         </div>

@@ -5,6 +5,7 @@ import Editor from '@monaco-editor/react';
 import { submitCode } from '../services/compilerService';
 import LanguageChangeModal from './LanguageChangeModal';
 import CodeStatisticsModal from './CodeStatisticsModal';
+
 import './Room.css';
 
 // Colors for different users' cursors
@@ -46,6 +47,7 @@ function Room() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsData, setStatsData] = useState({});
 
+
   useEffect(() => {
     if (!userName) {
       navigate('/');
@@ -68,6 +70,8 @@ function Room() {
 
     // Emit join-room event
     socket.emit('join-room', { roomCode, userName });
+
+
 
     // Listen for room joined
     socket.on('room-joined', (room) => {
@@ -329,46 +333,22 @@ function Room() {
       setLoading(false);
     }
   };
-
   const handleFetchStats = async () => {
     setStatsLoading(true);
     setShowStatsModal(true);
     
     try {
-      // Demonstrated use of the API Key as requested
-      const apiKey = "8314e6dc7ab7d0f24d600ff231318e4b6c3066d2";
-      
-      // Simulating a real API call using the provided key in headers
-      const response = await fetch('http://localhost:5000/api/mock-stats', {
+      const response = await fetch('http://localhost:5000/api/stats', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'X-API-Key': apiKey
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          code: code,
-          language: language
-        })
+        body: JSON.stringify({ code, language })
       });
 
-      // Local analysis for instant feedback
-      const lines = code.split('\n');
-      const realStats = {
-        totalLines: lines.length,
-        totalChars: code.length,
-        complexity: lines.length > 50 ? 'High' : (lines.length > 20 ? 'Moderate' : 'Low'),
-        language: language.toUpperCase(),
-        distribution: [
-          { label: 'Scripting', percentage: language === 'javascript' ? 85 : 15, color: '#f7df1e' },
-          { label: 'Logic', percentage: language === 'python' ? 70 : 60, color: '#3b82f6' },
-          { label: 'Styling', percentage: 20, color: '#ef4444' }
-        ]
-      };
-
-      // Mocking network delay
-      await new Promise(r => setTimeout(r, 1500));
-      setStatsData(realStats);
+      const stats = await response.json();
+      await new Promise(r => setTimeout(r, 800)); // Smooth transition
+      setStatsData(stats);
     } catch (err) {
       console.error('Stats API Failure:', err);
     } finally {
@@ -384,6 +364,8 @@ function Room() {
         onConfirm={handleModalConfirm}
         isOpen={showLanguageModal}
       />
+
+
 
       <CodeStatisticsModal 
         isOpen={showStatsModal} 
@@ -485,6 +467,7 @@ function Room() {
             >
               📊 Statistics
             </button>
+
           </div>
           <div className="io-container">
             <div className="input-section">
